@@ -33,7 +33,7 @@ export interface FileUploadBoxProps extends HTMLAttributes<HTMLDivElement> {
     uploadedFiles?: UploadedFile[]; // 서버에서 가져온 파일 목록
     uploaderUrl?: string; // 파일 업로더 URL (선택적)
     multiple?: boolean; // 다중 파일 업로드 여부 (선택적, 기본값: true)
-    height?: number; // 컴포넌트 높이 (선택적)
+    height?: number | string; // 컴포넌트 높이 (선택적)
     onUpload?: (files: File[]) => void; // 파일 업로드 콜백
     viewInBrowser?: boolean; // 브라우저에서 볼 수 있는 파일을 새 탭에서 열지 여부
     acceptedTypes?: string[]; // 허용되는 파일 확장자 목록 (예: ['jpg', 'png', 'pdf']) - 기본값: 모든 파일
