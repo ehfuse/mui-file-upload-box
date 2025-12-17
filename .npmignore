@@ -1,0 +1,13 @@
+src/
+example/
+node_modules/
+.gitignore
+.git/
+tsconfig.json
+*.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+build.js
