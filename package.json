@@ -1,6 +1,6 @@
 {
     "name": "@ehfuse/mui-file-upload-box",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "MUI-based file upload component with drag-and-drop support",
     "main": "dist/index.js",
     "module": "dist/index.esm.js",
