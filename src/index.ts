@@ -1,8 +1,2 @@
 export { FileUploadBox } from "./FileUploadBox";
-export type {
-    FileUploadBoxProps,
-    FileUploadBoxRef,
-    UploadedFile,
-    ServerFile,
-    FileUploadBoxStyles,
-} from "./types";
+export type { FileDeleteRequestContext, FileDescriptor, FileDownloadValue, FileIdentity, FileUploadBoxProps, FileUploadBoxRef, FileUploadRequestContext, FileUploadResult, UploadedFile, UploadedFileBase, FileUploadBoxStyles, } from "./types";

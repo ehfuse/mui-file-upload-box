@@ -1,102 +1,213 @@
-import { useState, useImperativeHandle, forwardRef, useEffect } from "react";
+import {
+    useState,
+    useImperativeHandle,
+    forwardRef,
+    useEffect,
+} from "react";
+import type { ForwardedRef, ReactElement, RefAttributes } from "react";
 import { Box, IconButton, Tooltip } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import UploadIcon from "@mui/icons-material/Upload";
 import ClearIcon from "@mui/icons-material/Clear";
-import useSWRMutation from "swr/mutation";
-import { fetchData, ApiResponse, isSuccess, post } from "@ehfuse/api-client";
-import { Alert } from "@ehfuse/alerts";
-import { useModal } from "@ehfuse/forma";
 import type {
+    FileDownloadValue,
     FileUploadBoxProps,
     FileUploadBoxRef,
     UploadedFile,
 } from "./types";
-import { formatFileSize, formatDateTime } from "./utils";
-
-const BASE_URL = ""; // 기본값은 빈 문자열
+import { formatFileSize } from "./utils";
 
 // 파일 업로드/다운로드/삭제 기능을 제공하는 컴포넌트
-export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
-    (
-        {
-            uploadedFiles,
-            uploaderUrl = `/upload/uploader`,
-            multiple = true,
-            height = 100,
-            onUpload,
-            viewInBrowser = true,
-            acceptedTypes = [
+function FileUploadBoxInner<
+    TFile extends UploadedFile = UploadedFile,
+    TUploadContext extends object = Record<string, never>,
+>(
+    {
+        uploadedFiles,
+        multiple = true,
+        height = 100,
+        onUpload,
+        onRequestUpload,
+        onRequestDelete,
+        onRequestDownload,
+        getFileId,
+        getFileTooltip,
+        onValidationError,
+        viewInBrowser = true,
+        acceptedTypes = [
+            "jpg",
+            "jpeg",
+            "png",
+            "gif",
+            "svg",
+            "pdf",
+            "doc",
+            "docx",
+            "xls",
+            "xlsx",
+            "ppt",
+            "txt",
+            "pptx",
+            "hwp",
+            "hwpx",
+            "csv",
+            "json",
+            "xml",
+            "log",
+            "html",
+            "htm",
+            "zip",
+            "rar",
+            "egg",
+        ],
+        maxFileSize = 20, // 기본값: 20MB
+        variant = "box", // 기본값: "box"
+        iconSize = 16, // 기본값: 20px
+        dropzoneText = "파일을 드래그하여 놓거나 클릭하여 선택하세요",
+        emptyText = "파일이 없습니다",
+        showTooltip = true, // 기본값: true
+        styles,
+
+        ...props
+    }: FileUploadBoxProps<TFile, TUploadContext>,
+    ref: ForwardedRef<FileUploadBoxRef<TFile, TUploadContext>>
+) {
+        // 상태 관리
+        const [serverFiles, setServerFiles] = useState<TFile[]>(
+            uploadedFiles || []
+        ); // 서버 파일 목록
+        const [filesToDelete, setFilesToDelete] = useState<TFile[]>([]); // 삭제할 파일 목록
+        const [attachedFiles, setAttachedFiles] = useState<File[]>([]); // 첨부된 파일 목록
+        const [isDragOver, setIsDragOver] = useState(false); // 드래그 상태
+
+        const notifyError = (message: string) => {
+            if (onValidationError) {
+                onValidationError(message);
+                return;
+            }
+
+            if (typeof window !== "undefined") {
+                window.alert(message);
+            }
+        };
+
+        const mergeSelectedFiles = (files: File[]) => {
+            setAttachedFiles((prev) => [...prev, ...files]);
+            onUpload?.(files);
+        };
+
+        const openDownloadValue = (
+            file: TFile,
+            downloadValue: Exclude<FileDownloadValue, null | undefined>
+        ) => {
+            const isStringValue = typeof downloadValue === "string";
+            const objectUrl = isStringValue
+                ? downloadValue
+                : window.URL.createObjectURL(downloadValue);
+            const fileExtension =
+                file.name.split(".").pop()?.toLowerCase() || "";
+            const viewableExtensions = [
+                "pdf",
                 "jpg",
                 "jpeg",
                 "png",
                 "gif",
+                "bmp",
+                "webp",
                 "svg",
-                "pdf",
-                "doc",
-                "docx",
+                "txt",
+                "html",
+                "htm",
+                "csv",
                 "xls",
                 "xlsx",
-                "ppt",
-                "txt",
-                "pptx",
-                "hwp",
-                "hwpx",
-                "csv",
+                "js",
+                "jsx",
+                "ts",
+                "tsx",
+                "css",
+                "scss",
+                "sass",
+                "less",
+                "php",
+                "py",
+                "java",
+                "c",
+                "cpp",
+                "h",
+                "hpp",
+                "cs",
+                "go",
+                "rs",
+                "rb",
+                "swift",
+                "kt",
+                "scala",
+                "sql",
+                "sh",
+                "bash",
+                "bat",
+                "ps1",
+                "yml",
+                "yaml",
+                "toml",
+                "ini",
+                "conf",
                 "json",
                 "xml",
                 "log",
-                "html",
-                "htm",
-                "zip",
-                "rar",
-                "egg",
-            ],
-            maxFileSize = 20, // 기본값: 20MB
-            variant = "box", // 기본값: "box"
-            iconSize = 16, // 기본값: 20px
-            dropzoneText = "파일을 드래그하여 놓거나 클릭하여 선택하세요",
-            noFilesText = "파일이 없습니다",
-            showTooltip = true, // 기본값: true
-            styles,
+                "md",
+                "markdown",
+            ];
 
-            ...props
-        },
-        ref
-    ) => {
-        // 상태 관리
-        const [serverFiles, setServerFiles] = useState<UploadedFile[]>(
-            uploadedFiles || []
-        ); // 서버 파일 목록
-        const [filesToDelete, setFilesToDelete] = useState<UploadedFile[]>([]); // 삭제할 파일 목록
-        const [attachedFiles, setAttachedFiles] = useState<File[]>([]); // 첨부된 파일 목록
-        const [isDragOver, setIsDragOver] = useState(false); // 드래그 상태
-        const [selectedFile, setSelectedFile] = useState<UploadedFile | null>(
-            null
-        ); // 선택된 파일
-        const {
-            isOpen: viewerOpen,
-            open: openViewer,
-            close: closeViewer,
-        } = useModal(); // 파일 뷰어 모달 관리
+            if (viewInBrowser && viewableExtensions.includes(fileExtension)) {
+                window.open(objectUrl, "_blank", "noopener,noreferrer");
+                if (!isStringValue) {
+                    window.setTimeout(() => {
+                        window.URL.revokeObjectURL(objectUrl);
+                    }, 1000);
+                }
+                return;
+            }
+
+            const link = document.createElement("a");
+            link.href = objectUrl;
+            link.download = file.name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            if (!isStringValue) {
+                window.URL.revokeObjectURL(objectUrl);
+            }
+        };
 
         // props로 전달된 파일 목록이 변경되면 상태 업데이트
         useEffect(() => {
             const newFiles = uploadedFiles || [];
 
-            // 현재 삭제 표시된 파일들의 ID 목록
-            const deletedFileIds = serverFiles
-                .filter((file) => file.toDelete)
-                .map((file) => file.seq);
+            setServerFiles((prev) => {
+                if (!getFileId) {
+                    return newFiles;
+                }
 
-            // 새로운 파일들에 삭제 상태 복원
-            const updatedFiles = newFiles.map((file) => ({
-                ...file,
-                toDelete: deletedFileIds.includes(file.seq),
-            }));
+                const deletedFileIds = new Set(
+                    prev
+                        .filter((file) => file.pendingDelete)
+                        .map((file) => getFileId(file))
+                );
 
-            setServerFiles(updatedFiles);
-        }, [uploadedFiles]); // serverFiles 의존성 제거하여 무한 루프 방지
+                return newFiles.map(
+                    (file) =>
+                        ({
+                            ...file,
+                            pendingDelete: deletedFileIds.has(
+                                getFileId(file)
+                            ),
+                        }) as TFile
+                );
+            });
+        }, [uploadedFiles, getFileId]);
 
         // 파일 확장자 검증 함수
         const isFileTypeAllowed = (fileName: string): boolean => {
@@ -139,51 +250,6 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
             return { allowed, rejected, oversized };
         };
 
-        // 파일 업로드 API 호출 함수
-        const { trigger: uploadFiles } = useSWRMutation(
-            uploaderUrl,
-            async (url, { arg }: { arg?: FormData }) => {
-                // url은 이미 문자열이므로 BASE_URL을 추가하지 않음
-                const response: ApiResponse | null = await fetchData({
-                    endpoint: url,
-                    method: "POST",
-                    params: arg,
-                    json: false, // FormData는 JSON이 아님
-                });
-                return response;
-            }
-        );
-
-        // 파일 다운로드 API 호출 함수 - SWR mutation 사용
-        const { trigger: downloadFileBlob } = useSWRMutation(
-            `/downloader`,
-            async (
-                url,
-                { arg }: { arg?: { table_name: string; data_seq: string } }
-            ) => {
-                // Blob으로 받아오기 위한 설정
-                const response = await fetch(`${url}`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(arg),
-                });
-
-                // 응답을 Blob으로 변환
-                return await response.blob();
-            }
-        );
-
-        // 파일 삭제 API 호출 함수 - URL을 대문자 D로 수정해야 함
-        const { trigger: deleteFiles } = useSWRMutation(
-            `/upload/deleter`, // 대문자 D로 수정
-            async (url, { arg }: { arg?: { files: UploadedFile[] } }) => {
-                const response = await post(url, arg);
-                return response;
-            }
-        );
-
         // 드래그 앤 드롭 이벤트 핸들러
         const handleDragOver = (e: React.DragEvent) => {
             e.preventDefault();
@@ -204,22 +270,20 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
             // 허용되지 않는 파일 형식 알림
             if (rejected.length > 0) {
                 const allowedTypes = acceptedTypes?.join(", ") || "모든 파일";
-                Alert(
-                    `허용되지 않는 파일 형식입니다. 허용되는 형식: ${allowedTypes}`,
-                    "error"
+                notifyError(
+                    `허용되지 않는 파일 형식입니다. 허용되는 형식: ${allowedTypes}`
                 );
             }
 
             // 크기 초과 파일 알림
             if (oversized.length > 0) {
-                Alert(
-                    `파일 크기 초과. 최대 허용 크기: ${maxFileSize}MB`,
-                    "error"
+                notifyError(
+                    `파일 크기 초과. 최대 허용 크기: ${maxFileSize}MB`
                 );
             }
 
             if (allowed.length > 0) {
-                setAttachedFiles((prev) => [...prev, ...allowed]);
+                mergeSelectedFiles(allowed);
             }
         };
 
@@ -247,22 +311,20 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
                 if (rejected.length > 0) {
                     const allowedTypes =
                         acceptedTypes?.join(", ") || "모든 파일";
-                    Alert(
-                        `허용되지 않는 파일 형식입니다. 허용되는 형식: ${allowedTypes}`,
-                        "error"
+                    notifyError(
+                        `허용되지 않는 파일 형식입니다. 허용되는 형식: ${allowedTypes}`
                     );
                 }
 
                 // 크기 초과 파일 알림
                 if (oversized.length > 0) {
-                    Alert(
-                        `파일 크기 초과. 최대 허용 크기: ${maxFileSize}MB`,
-                        "error"
+                    notifyError(
+                        `파일 크기 초과. 최대 허용 크기: ${maxFileSize}MB`
                     );
                 }
 
                 if (allowed.length > 0) {
-                    setAttachedFiles((prev) => [...prev, ...allowed]);
+                    mergeSelectedFiles(allowed);
                 }
 
                 document.body.removeChild(input);
@@ -280,42 +342,44 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
         const handleServerFileRemove = (index: number) => {
             // 삭제할 파일 목록에 추가
             const fileToDelete = serverFiles[index];
+            if (!fileToDelete) {
+                return;
+            }
             setFilesToDelete((prev) => [...prev, fileToDelete]);
 
-            // UI에서 취소선 처리를 위해 toDelete 속성 추가
+            // UI에서 삭제 대기 상태를 표시한다.
             setServerFiles((prev) =>
                 prev.map((file, i) =>
-                    i === index ? { ...file, toDelete: true } : file
+                    i === index
+                        ? ({ ...file, pendingDelete: true } as TFile)
+                        : file
                 )
             );
         };
 
         // 파일 업로드 처리 함수 (외부에서 호출됨)
         const handleUploadFiles = async (
-            tableName: string,
-            dataFieldName: string,
-            dataSeq: string
+            context?: TUploadContext
         ): Promise<boolean> => {
-            if (!dataSeq) {
-                console.debug("🚀 FileUploadBox: No dataSeq provided");
-                return false;
-            }
-
             // 1. 삭제할 파일이 있으면 먼저 삭제 처리
             if (filesToDelete.length > 0) {
-                console.debug(
-                    "🚀 FileUploadBox: Deleting files:",
-                    filesToDelete
-                );
-                const deleteResponse = await deleteFiles({
-                    files: filesToDelete,
-                });
-                if (!isSuccess(deleteResponse)) {
-                    console.error("파일 삭제 실패:", deleteResponse);
+                if (!onRequestDelete) {
+                    notifyError("파일 삭제 콜백이 설정되지 않았습니다.");
                     return false;
                 }
-                // 삭제 성공 시 삭제 목록 초기화
+
+                const deleteResult = await onRequestDelete({
+                    files: filesToDelete,
+                });
+
+                if (deleteResult === false) {
+                    return false;
+                }
+
                 setFilesToDelete([]);
+                setServerFiles((prev) =>
+                    prev.filter((file) => !file.pendingDelete)
+                );
             }
 
             // 2. 업로드할 파일이 없으면 성공으로 간주
@@ -323,42 +387,36 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
                 return true;
             }
 
-            // 3. 파일 업로드 처리
-            const formData = new FormData();
-            formData.append("table_name", tableName);
-            formData.append("data_field_name", dataFieldName);
-            formData.append("data_seq", dataSeq);
-
-            attachedFiles.forEach((file, index) => {
-                formData.append(`files[${index}]`, file);
-            });
+            if (!onRequestUpload) {
+                notifyError("파일 업로드 콜백이 설정되지 않았습니다.");
+                return false;
+            }
 
             try {
-                const fileUploadResponse: ApiResponse | null =
-                    await uploadFiles(formData);
-                setAttachedFiles([]); // 업로드 관계 없이 초기화
+                const uploadResult = await onRequestUpload({
+                    ...(context || ({} as TUploadContext)),
+                    files: attachedFiles,
+                });
 
-                if (fileUploadResponse && isSuccess(fileUploadResponse)) {
-                    return true;
-                } else {
+                if (Array.isArray(uploadResult)) {
+                    setServerFiles((prev) => [...prev, ...uploadResult]);
+                }
+
+                if (uploadResult === false) {
                     return false;
                 }
+
+                setAttachedFiles([]);
+                return true;
             } catch (error) {
                 console.error("🚀 FileUploadBox: Upload error:", error);
-                setAttachedFiles([]); // 에러 시에도 초기화
                 return false;
             }
         };
 
-        // 파일 뷰어 닫기
-        const handleCloseViewer = () => {
-            closeViewer();
-            setSelectedFile(null);
-        };
-
         // 파일 다운로드 처리 함수
         const handleDownloadFile = async (
-            file: UploadedFile,
+            file: TFile,
             e?: React.MouseEvent
         ) => {
             // 이벤트 전파 방지
@@ -367,104 +425,18 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
             }
 
             // 삭제 예정인 파일은 다운로드 불가
-            if (file.toDelete) return;
+            if (file.pendingDelete) return;
 
             try {
-                // 파일 확장자 추출
-                const fileExtension =
-                    file.name.split(".").pop()?.toLowerCase() || "";
+                const downloadValue =
+                    file.downloadUrl ||
+                    (await onRequestDownload?.(file));
 
-                // 브라우저에서 열 수 있는 파일 형식 정의
-                const viewableExtensions = [
-                    "pdf",
-                    "jpg",
-                    "jpeg",
-                    "png",
-                    "gif",
-                    "bmp",
-                    "webp",
-                    "svg",
-                    "txt",
-                    "html",
-                    "htm",
-                    "csv",
-                    "xls",
-                    "xlsx",
-                    "js",
-                    "jsx",
-                    "ts",
-                    "tsx",
-                    "css",
-                    "scss",
-                    "sass",
-                    "less",
-                    "php",
-                    "py",
-                    "java",
-                    "c",
-                    "cpp",
-                    "h",
-                    "hpp",
-                    "cs",
-                    "go",
-                    "rs",
-                    "rb",
-                    "swift",
-                    "kt",
-                    "scala",
-                    "sql",
-                    "sh",
-                    "bash",
-                    "bat",
-                    "ps1",
-                    "yml",
-                    "yaml",
-                    "toml",
-                    "ini",
-                    "conf",
-                    "json",
-                    "xml",
-                    "log",
-                    "md",
-                    "markdown",
-                ];
-
-                if (
-                    viewInBrowser &&
-                    viewableExtensions.includes(fileExtension)
-                ) {
-                    if (file.toDelete) return;
-                    setSelectedFile(file);
-                    openViewer();
-                } else if (fileExtension === "pdf") {
-                    // PDF는 viewInBrowser 설정과 관계없이 항상 뷰어로 열기
-                    if (file.toDelete) return;
-                    setSelectedFile(file);
-                    openViewer();
-                } else if (["csv", "xls", "xlsx"].includes(fileExtension)) {
-                    // 스프레드시트 파일들은 viewInBrowser 설정과 관계없이 항상 뷰어로 열기
-                    if (file.toDelete) return;
-                    setSelectedFile(file);
-                    openViewer();
-                } else {
-                    const blob = await downloadFileBlob({
-                        table_name: file.table_name,
-                        data_seq: file.seq,
-                    });
-
-                    if (blob) {
-                        // Blob을 다운로드 링크로 변환
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = file.name;
-                        document.body.appendChild(a);
-                        a.click();
-                        window.URL.revokeObjectURL(url);
-                        document.body.removeChild(a);
-                    }
-                    return true;
+                if (!downloadValue) {
+                    return false;
                 }
+
+                openDownloadValue(file, downloadValue);
 
                 return true;
             } catch (error) {
@@ -474,14 +446,15 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
         };
 
         // 삭제할 파일 목록 반환 메서드
-        const getFilesToDelete = () => {
+        const getPendingDeleteFiles = () => {
             return filesToDelete;
         };
 
         // ref를 통해 외부에서 접근할 수 있는 함수들 노출
         useImperativeHandle(ref, () => ({
             handleUploadFiles,
-            getFilesToDelete,
+            getPendingDeleteFiles,
+            getAttachedFiles: () => attachedFiles,
         }));
 
         // 컴포넌트 렌더링
@@ -552,7 +525,8 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
 
                 {/* 파일 목록 - variant가 "icon"이 아닐 때만 표시 */}
                 {variant !== "icon" &&
-                    (serverFiles?.filter((file) => !file.toDelete).length > 0 ||
+                    (serverFiles?.filter((file) => !file.pendingDelete)
+                        .length > 0 ||
                         (variant !== "list" && attachedFiles.length > 0)) && (
                         <Box
                             sx={{
@@ -560,7 +534,7 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
                             }}
                         >
                             {/* 서버에서 가져온 파일 목록 */}
-                            {serverFiles?.filter((file) => !file.toDelete)
+                            {serverFiles?.filter((file) => !file.pendingDelete)
                                 .length > 0 && (
                                 <Box
                                     className="uploaded-files-list"
@@ -570,128 +544,136 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
                                     }}
                                 >
                                     {serverFiles
-                                        .filter((file) => !file.toDelete) // 삭제 마킹된 파일 제외
-                                        .map((file, index) => (
-                                            <Tooltip
-                                                key={index}
-                                                title={
-                                                    showTooltip
-                                                        ? `${
-                                                              file.user_name ||
-                                                              ""
-                                                          } @ ${
-                                                              formatDateTime(
-                                                                  file.created_time ||
-                                                                      ""
-                                                              ) || ""
-                                                          }`
-                                                        : ""
-                                                }
-                                                placement="left"
-                                                arrow
-                                                enterDelay={0}
-                                                leaveDelay={0}
-                                                disableInteractive
-                                                disableHoverListener={
-                                                    !showTooltip
-                                                }
-                                                slotProps={{
-                                                    tooltip: {
-                                                        sx: {
-                                                            fontSize: "14px",
-                                                            bgcolor: "black",
-                                                            textAlign: "center",
-                                                            "& .MuiTooltip-arrow":
-                                                                {
-                                                                    color: "black",
-                                                                },
-                                                            ...styles?.tooltip,
-                                                        },
-                                                    },
-                                                }}
-                                            >
-                                                <Box
-                                                    className="file-item"
-                                                    onClick={() =>
-                                                        handleDownloadFile(file)
+                                        .filter((file) => !file.pendingDelete) // 삭제 대기 파일 제외
+                                        .map((file, index) => {
+                                            const tooltipTitle =
+                                                getFileTooltip?.(file) || "";
+                                            const fileKey = getFileId
+                                                ? String(getFileId(file))
+                                                : `${file.name}-${file.size}-${index}`;
+
+                                            return (
+                                                <Tooltip
+                                                    key={fileKey}
+                                                    title={
+                                                        showTooltip
+                                                            ? tooltipTitle
+                                                            : ""
                                                     }
-                                                    sx={{
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: 2,
-                                                        borderRadius: 1,
-                                                        px: 1.5,
-                                                        py: 0.5,
-                                                        fontSize: "0.875rem",
-                                                        cursor: "pointer",
-                                                        fontFamily:
-                                                            "var(--font-suit)",
-                                                        "&:hover": {
-                                                            bgcolor:
-                                                                "neutral.100",
+                                                    placement="left"
+                                                    arrow
+                                                    enterDelay={0}
+                                                    leaveDelay={0}
+                                                    disableInteractive
+                                                    disableHoverListener={
+                                                        !showTooltip ||
+                                                        !tooltipTitle
+                                                    }
+                                                    slotProps={{
+                                                        tooltip: {
+                                                            sx: {
+                                                                fontSize: "14px",
+                                                                bgcolor: "black",
+                                                                textAlign:
+                                                                    "center",
+                                                                "& .MuiTooltip-arrow":
+                                                                    {
+                                                                        color: "black",
+                                                                    },
+                                                                ...styles?.tooltip,
+                                                            },
                                                         },
-                                                        ...styles?.fileItem,
                                                     }}
                                                 >
-                                                    <AttachFileIcon
-                                                        sx={{
-                                                            fontSize: iconSize,
-                                                        }}
-                                                    />
                                                     <Box
+                                                        className="file-item"
+                                                        onClick={() =>
+                                                            handleDownloadFile(
+                                                                file
+                                                            )
+                                                        }
                                                         sx={{
                                                             display: "flex",
-                                                            flex: 1,
-                                                            flexDirection:
-                                                                "row",
                                                             alignItems:
                                                                 "center",
-                                                            justifyContent:
-                                                                "space-between",
+                                                            gap: 2,
+                                                            borderRadius: 1,
+                                                            px: 1.5,
+                                                            py: 0.5,
+                                                            fontSize:
+                                                                "0.875rem",
+                                                            cursor: "pointer",
+                                                            fontFamily:
+                                                                "var(--font-suit)",
+                                                            "&:hover": {
+                                                                bgcolor:
+                                                                    "neutral.100",
+                                                            },
+                                                            ...styles?.fileItem,
                                                         }}
                                                     >
-                                                        <span>
-                                                            {file.name}{" "}
-                                                            <span
-                                                                style={{
-                                                                    color: "#999999",
-                                                                }}
-                                                            >
-                                                                (
-                                                                {formatFileSize(
-                                                                    file.size
-                                                                )}
-                                                                )
+                                                        <AttachFileIcon
+                                                            sx={{
+                                                                fontSize:
+                                                                    iconSize,
+                                                            }}
+                                                        />
+                                                        <Box
+                                                            sx={{
+                                                                display: "flex",
+                                                                flex: 1,
+                                                                flexDirection:
+                                                                    "row",
+                                                                alignItems:
+                                                                    "center",
+                                                                justifyContent:
+                                                                    "space-between",
+                                                            }}
+                                                        >
+                                                            <span>
+                                                                {file.name}{" "}
+                                                                <span
+                                                                    style={{
+                                                                        color: "#999999",
+                                                                    }}
+                                                                >
+                                                                    (
+                                                                    {formatFileSize(
+                                                                        file.size
+                                                                    )}
+                                                                    )
+                                                                </span>
                                                             </span>
-                                                        </span>
-                                                        {/* list variant가 아니고 파일이 readonly가 아닐 때 삭제 아이콘 표시 */}
-                                                        {variant !== "list" &&
-                                                            !file.readonly && (
-                                                                <ClearIcon
-                                                                    onClick={(
-                                                                        e
-                                                                    ) => {
-                                                                        e.stopPropagation();
-                                                                        handleServerFileRemove(
-                                                                            index
-                                                                        );
-                                                                    }}
-                                                                    sx={{
-                                                                        fontSize: 16,
-                                                                        color: "#cccccc",
-                                                                        cursor: "pointer",
-                                                                        "&:hover":
-                                                                            {
-                                                                                color: "#ff4444",
-                                                                            },
-                                                                        ...styles?.deleteIcon,
-                                                                    }}
-                                                                />
-                                                            )}
+                                                            {/* list variant가 아니고 readOnly가 아닐 때 삭제 아이콘 표시 */}
+                                                            {variant !==
+                                                                "list" &&
+                                                                !file.readOnly && (
+                                                                    <ClearIcon
+                                                                        onClick={(
+                                                                            e
+                                                                        ) => {
+                                                                            e.stopPropagation();
+                                                                            handleServerFileRemove(
+                                                                                index
+                                                                            );
+                                                                        }}
+                                                                        sx={{
+                                                                            fontSize: 16,
+                                                                            color: "#cccccc",
+                                                                            cursor: "pointer",
+                                                                            "&:hover":
+                                                                                {
+                                                                                    color: "#ff4444",
+                                                                                },
+                                                                            ...styles?.deleteIcon,
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                        </Box>
                                                     </Box>
-                                                </Box>
-                                            </Tooltip>
-                                        ))}
+                                                </Tooltip>
+                                            );
+                                        })}
                                 </Box>
                             )}
 
@@ -777,7 +759,8 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
 
                 {/* list variant에서 파일이 없을 때 메시지 표시 */}
                 {variant === "list" &&
-                    serverFiles?.filter((file) => !file.toDelete).length ===
+                    serverFiles?.filter((file) => !file.pendingDelete)
+                        .length ===
                         0 && (
                         <Box sx={{ paddingTop: 0 }}>
                             <Box
@@ -792,11 +775,18 @@ export const FileUploadBox = forwardRef<FileUploadBoxRef, FileUploadBoxProps>(
                                     fontFamily: "var(--font-suit)",
                                 }}
                             >
-                                {noFilesText}
+                                {emptyText}
                             </Box>
                         </Box>
                     )}
             </div>
         );
-    }
-);
+}
+
+export const FileUploadBox = forwardRef(FileUploadBoxInner) as <
+    TFile extends UploadedFile = UploadedFile,
+    TUploadContext extends object = Record<string, never>,
+>(
+    props: FileUploadBoxProps<TFile, TUploadContext> &
+        RefAttributes<FileUploadBoxRef<TFile, TUploadContext>>
+) => ReactElement | null;
