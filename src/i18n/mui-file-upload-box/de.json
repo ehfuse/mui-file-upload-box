@@ -1,0 +1,9 @@
+{
+    "allFiles": "Alle Dateien",
+    "dropzone": "Dateien hierher ziehen oder zum Auswählen klicken",
+    "noDeleteCallback": "Kein Callback zum Löschen von Dateien festgelegt.",
+    "noFiles": "Keine Dateien",
+    "noUploadCallback": "Kein Callback zum Hochladen von Dateien festgelegt.",
+    "tooLarge": "Datei ist zu groß. Maximale Größe: {{size}}MB",
+    "typeNotAllowed": "Dieser Dateityp ist nicht zulässig. Zulässige Typen: {{types}}"
+}

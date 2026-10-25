@@ -16,6 +16,7 @@ import type {
     UploadedFile,
 } from "./types";
 import { formatFileSize } from "./utils";
+import { useI18n } from "./i18n";
 
 // 파일 업로드/다운로드/삭제 기능을 제공하는 컴포넌트
 function FileUploadBoxInner<
@@ -63,8 +64,8 @@ function FileUploadBoxInner<
         maxFileSize = 20, // 기본값: 20MB
         variant = "box", // 기본값: "box"
         iconSize = 16, // 기본값: 20px
-        dropzoneText = "파일을 드래그하여 놓거나 클릭하여 선택하세요",
-        emptyText = "파일이 없습니다",
+        dropzoneText,
+        emptyText,
         showTooltip = true, // 기본값: true
         styles,
 
@@ -72,6 +73,8 @@ function FileUploadBoxInner<
     }: FileUploadBoxProps<TFile, TUploadContext>,
     ref: ForwardedRef<FileUploadBoxRef<TFile, TUploadContext>>
 ) {
+        // 기본 문구는 화면 언어로(setMuiFileUploadBoxLocale) — prop 으로 준 글이 이긴다(3.1.0)
+        const { t } = useI18n();
         // 상태 관리
         const [serverFiles, setServerFiles] = useState<TFile[]>(
             uploadedFiles || []
@@ -269,16 +272,16 @@ function FileUploadBoxInner<
 
             // 허용되지 않는 파일 형식 알림
             if (rejected.length > 0) {
-                const allowedTypes = acceptedTypes?.join(", ") || "모든 파일";
+                const allowedTypes = acceptedTypes?.join(", ") || t("allFiles");
                 notifyError(
-                    `허용되지 않는 파일 형식입니다. 허용되는 형식: ${allowedTypes}`
+                    t("typeNotAllowed", { types: allowedTypes })
                 );
             }
 
             // 크기 초과 파일 알림
             if (oversized.length > 0) {
                 notifyError(
-                    `파일 크기 초과. 최대 허용 크기: ${maxFileSize}MB`
+                    t("tooLarge", { size: maxFileSize })
                 );
             }
 
@@ -310,16 +313,16 @@ function FileUploadBoxInner<
                 // 허용되지 않는 파일 형식 알림
                 if (rejected.length > 0) {
                     const allowedTypes =
-                        acceptedTypes?.join(", ") || "모든 파일";
+                        acceptedTypes?.join(", ") || t("allFiles");
                     notifyError(
-                        `허용되지 않는 파일 형식입니다. 허용되는 형식: ${allowedTypes}`
+                        t("typeNotAllowed", { types: allowedTypes })
                     );
                 }
 
                 // 크기 초과 파일 알림
                 if (oversized.length > 0) {
                     notifyError(
-                        `파일 크기 초과. 최대 허용 크기: ${maxFileSize}MB`
+                        t("tooLarge", { size: maxFileSize })
                     );
                 }
 
@@ -364,7 +367,7 @@ function FileUploadBoxInner<
             // 1. 삭제할 파일이 있으면 먼저 삭제 처리
             if (filesToDelete.length > 0) {
                 if (!onRequestDelete) {
-                    notifyError("파일 삭제 콜백이 설정되지 않았습니다.");
+                    notifyError(t("noDeleteCallback"));
                     return false;
                 }
 
@@ -388,7 +391,7 @@ function FileUploadBoxInner<
             }
 
             if (!onRequestUpload) {
-                notifyError("파일 업로드 콜백이 설정되지 않았습니다.");
+                notifyError(t("noUploadCallback"));
                 return false;
             }
 
@@ -507,7 +510,7 @@ function FileUploadBoxInner<
                                     <UploadIcon
                                         sx={{ color: "#999999", fontSize: 20 }}
                                     />{" "}
-                                    {dropzoneText}
+                                    {dropzoneText ?? t("dropzone")}
                                 </div>
                             </Box>
                         ) : variant === "icon" ? (
@@ -775,7 +778,7 @@ function FileUploadBoxInner<
                                     fontFamily: "var(--font-suit)",
                                 }}
                             >
-                                {emptyText}
+                                {emptyText ?? t("noFiles")}
                             </Box>
                         </Box>
                     )}

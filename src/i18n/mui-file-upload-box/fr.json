@@ -1,0 +1,9 @@
+{
+    "allFiles": "Tous les fichiers",
+    "dropzone": "Glissez-déposez des fichiers ici ou cliquez pour sélectionner",
+    "noDeleteCallback": "Aucun callback de suppression de fichier n'est configuré.",
+    "noFiles": "Aucun fichier",
+    "noUploadCallback": "Aucun callback de téléversement de fichier n'est configuré.",
+    "tooLarge": "Fichier trop volumineux. Taille maximale : {{size}} Mo",
+    "typeNotAllowed": "Type de fichier non autorisé. Types autorisés : {{types}}"
+}

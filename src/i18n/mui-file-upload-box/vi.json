@@ -1,0 +1,9 @@
+{
+    "allFiles": "Tất cả tệp",
+    "dropzone": "Kéo thả tệp vào đây hoặc nhấp để chọn",
+    "noDeleteCallback": "Chưa thiết lập callback xóa tệp.",
+    "noFiles": "Không có tệp nào",
+    "noUploadCallback": "Chưa thiết lập callback tải lên tệp.",
+    "tooLarge": "Dung lượng tệp quá lớn. Kích thước tối đa: {{size}}MB",
+    "typeNotAllowed": "Định dạng tệp không được phép. Định dạng cho phép: {{types}}"
+}

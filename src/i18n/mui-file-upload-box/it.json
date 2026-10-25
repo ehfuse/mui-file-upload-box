@@ -1,0 +1,9 @@
+{
+    "allFiles": "Tutti i file",
+    "dropzone": "Trascini i file qui o faccia clic per selezionarli",
+    "noDeleteCallback": "Nessun callback di eliminazione file impostato.",
+    "noFiles": "Nessun file",
+    "noUploadCallback": "Nessun callback di caricamento file impostato.",
+    "tooLarge": "File troppo grande. Dimensione massima: {{size}}MB",
+    "typeNotAllowed": "Tipo di file non consentito. Tipi consentiti: {{types}}"
+}
